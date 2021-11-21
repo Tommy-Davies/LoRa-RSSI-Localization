@@ -34,6 +34,8 @@ void setup()
     Serial.println("init failed");
   driver.setFrequency(900);
   driver.setTxPower(23, false);
+  manager.setRetries(1);
+  manager.setTimeout(30);
 }
 
 uint8_t data[] = "Ping";
@@ -56,7 +58,7 @@ void loop()
   {
     if (manager.sendtoWait(data, sizeof(data), NODEA))
     {
-      if (manager.recvfromAckTimeout(buf, &len, 1000, &from))
+      if (manager.recvfromAckTimeout(buf, &len, 500, &from))
       {
         nodeAPacket += String(driver.lastRssi());
 
@@ -84,7 +86,7 @@ void loop()
   {
     if (manager.sendtoWait(data, sizeof(data), NODEB))
     {
-      if (manager.recvfromAckTimeout(buf, &len, 1000, &from))
+      if (manager.recvfromAckTimeout(buf, &len, 500, &from))
       {
         nodeBPacket += String(driver.lastRssi());
 
@@ -113,7 +115,7 @@ void loop()
     Serial.println("send to c");
     if (manager.sendtoWait(data, sizeof(data), NODEC))
     {
-      if (manager.recvfromAckTimeout(buf, &len, 1000, &from))
+      if (manager.recvfromAckTimeout(buf, &len, 500, &from))
       {
         nodeCPacket += String(driver.lastRssi());
 
@@ -142,18 +144,11 @@ void loop()
   packetString = nodeAPacket + nodeBPacket + nodeCPacket + eofStr;
   uint8_t *packetData = (uint8_t*)packetString.c_str();
 
-  // packetString.getBytes(packetData, packetString.length() + 1);
-
- 
-  // Serial.println((packetData));
   //send packets to data server
   for(int i = 0; i < packetString.length(); i++){
     Serial.print((char)packetData[i]);
   }
-  // Serial.println(packetString.c_str()); 
-  Serial.println(sizeof(packetString));
-  Serial.println(packetString.length());
-  uint8_t test[] = "test";
+
   if(manager.sendtoWait(packetData, packetString.length(), NODEC)){
     if (manager.recvfromAckTimeout(buf, &len, 1000, &from))
     {
@@ -161,23 +156,7 @@ void loop()
     }
 
   }
-  // manager.sendtoWait((uint8_t *)packetString, sizeof(packetData), NODEC);
+  
+  free(packetData);
 
-  // if (manager.sendtoWait(packetData, sizeof(packetData), NODEC))
-  // {
-    // if (manager.recvfromAckTimeout(buf, &len, 5000, &from))
-    // {
-    //   Serial.println("Transmission successful. Dumping data.");
-
-    //   memset(packetData, 0, sizeof(packetData));
-    //   nodeAPacket = "";
-    //   nodeBPacket = "";
-    //   nodeCPacket = "";
-    //   j = 0;
-
-    // }
-  // }
-  // free(packetData);
-
-  // delay(500);
 }
