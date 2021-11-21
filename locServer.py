@@ -57,7 +57,7 @@ def handlePacket(rawPacket:'string')->'list, list, list':
     #return lists
     return nodeAData, nodeBData, nodeCData
 
-def calcDistance(nodeA: 'list', nodeB: 'list', nodeC: 'list'):
+def calcDistance(nodeA: 'list', nodeB: 'list', nodeC: 'list')->'float, float, float':
     #set averages to arbitrary unreachable values for error checking
     avgNodeA = 1.1
     avgNodeB = 1.1 
@@ -71,19 +71,33 @@ def calcDistance(nodeA: 'list', nodeB: 'list', nodeC: 'list'):
         avgNodeC = statistics.mean(nodeC)
 
     #rssi parameters
-    x = 0.0
+
+    #rssi values at 1m
+    AA = -38 #TODO tune this value
+    AB = -38 #TODO tune this value
     AC = -38
-    n = 2
+
+    #pathloss coeficient
+    n = 2 #TODO tune this value
+
     aDist = 0.0 #force floats
     bDist = 0.0
     cDist = 0.0
 
+    if(avgNodeA is not 1.1): #check if average was populated
+        aDist = math.pow(10, ((AA - avgNodeA) / (10 * n))) #calculate distance with rssi
+
+    if(avgNodeB is not 1.1): #check if average was populated
+        bDist = math.pow(10, ((AB - avgNodeB) / (10 * n))) #calculate distance with rssi
+    
     if(avgNodeC is not 1.1): #check if average was populated
         cDist = math.pow(10, ((AC - avgNodeC) / (10 * n))) #calculate distance with rssi
-    print("DISTANCE:" + str(cDist))
 
+    print("A DISTANCE:" + str(aDist))
+    print("B DISTANCE:" + str(bDist))
+    print("C DISTANCE:" + str(cDist))
 
-
+    return aDist, bDist, cDist
 
 
 print("Waiting for messages...")
@@ -98,12 +112,15 @@ while True:
         nodeA = [] 
         nodeB = []
         nodeC = []
+        aDist = 0.0
+        bDist = 0.0
+        cDist = 0.0
 
         if("Ping" not in packetData): #if packet is not a simple ping it should be a data packet
             #process and parse packet string along delimeters, return into lists
             nodeA, nodeB, nodeC = handlePacket(packetData) 
             #calculate distances from rssi data, requires the most fine tuning for accuracy
-            calcDistance(nodeA, nodeB, nodeC)
+            aDist, bDist, cDist = calcDistance(nodeA, nodeB, nodeC)
         
         # print(packetData)
         if not rfm9x.send_with_ack(bytes("I don't know why but this is necessary", "UTF-8")):
