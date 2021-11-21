@@ -6,49 +6,47 @@ import adafruit_rfm9x
 import statistics
 import math
 
-# Define radio parameters.
-RADIO_FREQ_MHZ = 900.0  # Frequency of the radio in Mhz. Must match your
-# module! Can be a value like 915.0, 433.0, etc.
-
-# Define pins connected to the chip.
-# set GPIO pins as necessary - this example is for Raspberry Pi
+RADIO_FREQ_MHZ = 900.0 #set radio frequency
+#digital io pins
 CS = digitalio.DigitalInOut(board.CE1)
 RESET = digitalio.DigitalInOut(board.D25)
-
-# Initialize SPI bus.
+#initialize spi bus
 spi = busio.SPI(board.SCK, MOSI=board.MOSI, MISO=board.MISO)
-# Initialze RFM radio
+#initialize radio driver
 rfm9x = adafruit_rfm9x.RFM9x(spi, CS, RESET, RADIO_FREQ_MHZ)
-rfm9x.tx_power = 23
-# enable CRC checking
-rfm9x.enable_crc = True
-# set delay before transmitting ACK (seconds)
-rfm9x.ack_delay = 0.05
-# set node addresses
-rfm9x.node = 4
-rfm9x.destination = 1
-# initialize counter
-counter = 0
-ack_failed_counter = 0
 
-def handlePacket(rawPacket):
+#radio parameters
+rfm9x.tx_power = 23
+rfm9x.enable_crc = True
+rfm9x.ack_delay = 0.05
+
+rfm9x.node = 4 #self address
+rfm9x.destination = 1 #localized node address
+
+
+def handlePacket(rawPacket:'string')->'list, list, list':
+#   Takes a recieved packet string and splits the information along delimeters.
+#   Returns 3 lists for each set of node data.
     packetIndex = rawPacket.split(",")
     mode = ""
-    print(packetIndex)
+    # print(packetIndex)
     nodeAData = []
     nodeBData = []
     nodeCData = []
 
     for index in packetIndex:
+        #Changes read mode when a new dataset is detected
         if("NodeA" in index):
             mode = "A"
         elif ("NodeB" in index):
             mode = "B"
         elif("NodeC" in index):
             mode = "C"
-        elif("EOF" in index):
+        elif("EOF" in index): #stops reading at EOF to prevent reading from invalid data
             break
-        if(index.lstrip("-").isdigit()):
+
+        #add data points to the correct lists
+        if(index.lstrip("-").isdigit()): #minus sign is problematic with isdigit
             if(mode is "A"):
                 nodeAData.append(int(index))
             elif(mode is "B"):
@@ -56,11 +54,11 @@ def handlePacket(rawPacket):
             elif(mode is "C"):
                 nodeCData.append(int(index))
           
-    print("Node C Data" + str(nodeCData))
+    #return lists
     return nodeAData, nodeBData, nodeCData
 
-def calcDistance(nodeA, nodeB, nodeC):
-    # print(nodeA)
+def calcDistance(nodeA: 'list', nodeB: 'list', nodeC: 'list')->'float, float, float':
+    #set averages to arbitrary unreachable values for error checking
     avgNodeA = 1.1
     avgNodeB = 1.1 
     avgNodeC = 1.1
@@ -72,46 +70,59 @@ def calcDistance(nodeA, nodeB, nodeC):
     if(bool(nodeC)):
         avgNodeC = statistics.mean(nodeC)
 
+    #rssi parameters
 
-    x = 0.0
+    #rssi values at 1m
+    AA = -38 #TODO tune this value
+    AB = -38 #TODO tune this value
     AC = -38
-    n = 2
-    aDist = 0.0
+
+    #pathloss coeficient
+    n = 2 #TODO tune this value
+
+    aDist = 0.0 #force floats
     bDist = 0.0
     cDist = 0.0
 
-    if(avgNodeC is not 1.1):
-        cDist = math.pow(10, ((AC - avgNodeC) / (10 * n)))
-    print("DISTANCE:" + str(cDist))
+    if(avgNodeA is not 1.1): #check if average was populated
+        aDist = math.pow(10, ((AA - avgNodeA) / (10 * n))) #calculate distance with rssi
+
+    if(avgNodeB is not 1.1): #check if average was populated
+        bDist = math.pow(10, ((AB - avgNodeB) / (10 * n))) #calculate distance with rssi
+    
+    if(avgNodeC is not 1.1): #check if average was populated
+        cDist = math.pow(10, ((AC - avgNodeC) / (10 * n))) #calculate distance with rssi
+
+    print("A DISTANCE:" + str(aDist))
+    print("B DISTANCE:" + str(bDist))
+    print("C DISTANCE:" + str(cDist))
+
+    return aDist, bDist, cDist
 
 
-
-
-
-# Wait to receive packets.
-print("Waiting for packets...")
-
+print("Waiting for messages...")
 while True:
-    packet = rfm9x.receive(with_ack=True, with_header=True)
+    packet = rfm9x.receive(with_ack=True, with_header=True) #attempt to recieve message
 
-    if packet is not None:
-       
-        
+    if packet is not None:    
         packetData = ""
-        packetData = packet.decode('UTF-8', 'backslashreplace')
-        nodeA = []
+        packetData = packet.decode('UTF-8', 'backslashreplace') #utf-8 decoding can cause problems with lossy comms like LoRa
+        
+        #reset packet lists
+        nodeA = [] 
         nodeB = []
         nodeC = []
+        aDist = 0.0
+        bDist = 0.0
+        cDist = 0.0
 
-
-        if("Ping" not in packetData):
-            nodeA, nodeB, nodeC = handlePacket(packetData)
-            calcDistance(nodeA, nodeB, nodeC)
+        if("Ping" not in packetData): #if packet is not a simple ping it should be a data packet
+            #process and parse packet string along delimeters, return into lists
+            nodeA, nodeB, nodeC = handlePacket(packetData) 
+            #calculate distances from rssi data, requires the most fine tuning for accuracy
+            aDist, bDist, cDist = calcDistance(nodeA, nodeB, nodeC)
         
-        print(packetData)
+        # print(packetData)
         if not rfm9x.send_with_ack(bytes("I don't know why but this is necessary", "UTF-8")):
             print("No Ack")
-     
 
-    # else:
-    #     print("none packet")
