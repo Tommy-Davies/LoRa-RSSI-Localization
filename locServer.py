@@ -5,6 +5,10 @@ import digitalio
 import adafruit_rfm9x
 import statistics
 import math
+import matplotlib
+matplotlib.use('TkAgg')
+import matplotlib.pyplot as plt
+
 
 RADIO_FREQ_MHZ = 900.0 #set radio frequency
 #digital io pins
@@ -136,6 +140,8 @@ def trilateration(aDist:'float', bDist:'float', cDist:'float')->'float, float':
 
 print("Waiting for messages...")
 while True:
+    # plt.scatter(0, 0)
+    # plt.show()
     packet = rfm9x.receive(with_ack=True, with_header=True) #attempt to recieve message
 
     if packet is not None:    
@@ -155,7 +161,10 @@ while True:
             nodeA, nodeB, nodeC = handlePacket(packetData) 
             #calculate distances from rssi data, requires the most fine tuning for accuracy
             aDist, bDist, cDist = calcDistance(nodeA, nodeB, nodeC)
-        
+            #calculate cartesian coordinates based on distances from nodes
+            xPos, yPos = trilateration(aDist, bDist, cDist)
+            
+            
         # print(packetData)
         if not rfm9x.send_with_ack(bytes("I don't know why but this is necessary", "UTF-8")):
             print("No Ack")
