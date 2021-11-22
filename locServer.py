@@ -23,6 +23,10 @@ rfm9x.ack_delay = 0.05
 rfm9x.node = 4 #self address
 rfm9x.destination = 1 #localized node address
 
+#save previous values in case of total packet loss on one or more nodes
+aPrev = 0
+bPrev = 0
+cPrev = 0 
 
 def handlePacket(rawPacket:'string')->'list, list, list':
 #   Takes a recieved packet string and splits the information along delimeters.
@@ -86,12 +90,19 @@ def calcDistance(nodeA: 'list', nodeB: 'list', nodeC: 'list')->'float, float, fl
 
     if(avgNodeA is not 1.1): #check if average was populated
         aDist = math.pow(10, ((AA - avgNodeA) / (10 * n))) #calculate distance with rssi
+        aPrev = aDist
+    else:
+        aDist = aPrev #use most recent best guess of position
 
     if(avgNodeB is not 1.1): #check if average was populated
         bDist = math.pow(10, ((AB - avgNodeB) / (10 * n))) #calculate distance with rssi
-    
+    else:
+        bDist = bPrev #use most recent best guess of position
+
     if(avgNodeC is not 1.1): #check if average was populated
         cDist = math.pow(10, ((AC - avgNodeC) / (10 * n))) #calculate distance with rssi
+    else:
+        cDist = cPrev #use most recent best guess of position
 
     print("A DISTANCE:" + str(aDist))
     print("B DISTANCE:" + str(bDist))
@@ -107,8 +118,11 @@ def calcDistance(nodeA: 'list', nodeB: 'list', nodeC: 'list')->'float, float, fl
 # y = (r1^2 - r3^2 + x3^2 + y3^2 - (2 * x3 * x))
 # z = sqrt(r1^2 - x^2 - y^2)
 
-def trilateration(aDist:'float', bDist:'float', cDist:'float')->'float, float, float':
-    #static anchor node positions
+# x1 0, y1 0
+# x2 4, y2 0
+# x3 3, y3 4 
+def trilateration(aDist:'float', bDist:'float', cDist:'float')->'float, float':
+    #static anchor node positions, in meters
     #TODO: update these:
     x2 = 4
     x3 = 3
@@ -116,9 +130,9 @@ def trilateration(aDist:'float', bDist:'float', cDist:'float')->'float, float, f
 
     xPos = (math.pow(aDist, 2) - math.pow(bDist, 2) + math.pow(x2, 2)) / (2 * x2)
     yPos = (math.pow(aDist, 2) - math.pow(cDist, 2) + math.pow(x3, 2) + math.pow(y3, 2) - (2 * x3 * xPos)) / (2 * y3)
-    zPos = (math.sqrt(math.pow(aDist, 2) - math.pow(xPos, 2) - math.pow(yPos, 2)))
+    # zPos = (math.sqrt(math.pow(aDist, 2) - math.pow(xPos, 2) - math.pow(yPos, 2))) #could produce a negative root
 
-    return xPos, yPos, zPos
+    return xPos, yPos
 
 print("Waiting for messages...")
 while True:
