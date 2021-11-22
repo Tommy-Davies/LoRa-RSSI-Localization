@@ -59,10 +59,10 @@ String getNodeAPacket(){
         {
           nodeAPacket += ",";
         }
-        else
-        {
-          nodeAPacket += "EOD,";
-        }
+        // else
+        // {
+        //   nodeAPacket += "EOD,";
+        // }
 
         // delay(50);
       }
@@ -92,10 +92,10 @@ String getNodeBPacket(){
         {
           nodeBPacket += ",";
         }
-        else
-        {
-          nodeBPacket += "EOD,";
-        }
+        // else
+        // {
+        //   nodeBPacket += "EOD,";
+        // }
         // delay(50);
       }
     }
@@ -121,14 +121,14 @@ String getNodeCPacket(){
       {
         nodeCPacket += String(driver.lastRssi());
 
-        if (i < 10)
+        if (i < 9)
         {
           nodeCPacket += ",";
         }
-        else
-        {
-          nodeCPacket += "EOD,";
-        }
+        // else
+        // {
+        //   nodeCPacket += "EOD,";
+        // }
 
         // delay(50);
       }
@@ -139,6 +139,13 @@ String getNodeCPacket(){
     }
   }
   return nodeCPacket;
+}
+
+//TODO: implement sensor reads/processing
+String getSensorData(){
+  String sensorData = "";
+
+  return sensorData;
 }
 
 void loop()
@@ -156,7 +163,7 @@ void loop()
   nodeCPacket = getNodeCPacket();  
 
   packetString = nodeAPacket + nodeBPacket + nodeCPacket + eofStr;
-  
+
   uint8_t *packetData = (uint8_t*)packetString.c_str();
 
   //send packets to data server
