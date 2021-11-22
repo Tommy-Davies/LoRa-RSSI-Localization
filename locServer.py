@@ -99,6 +99,26 @@ def calcDistance(nodeA: 'list', nodeB: 'list', nodeC: 'list')->'float, float, fl
 
     return aDist, bDist, cDist
 
+# r1^2 = x^2 + y^2 + z^2
+# r2^2 = (x - x2)^2 + y^2 + z^2
+# r3^2 = (x - x3)^2 + (y - y3)^2 + z^2
+
+# x = (r1^2 - r2^2 + x2^2) / (2 * x2)
+# y = (r1^2 - r3^2 + x3^2 + y3^2 - (2 * x3 * x))
+# z = sqrt(r1^2 - x^2 - y^2)
+
+def trilateration(aDist:'float', bDist:'float', cDist:'float')->'float, float, float':
+    #static anchor node positions
+    #TODO: update these:
+    x2 = 4
+    x3 = 3
+    y3 = 4
+
+    xPos = (math.pow(aDist, 2) - math.pow(bDist, 2) + math.pow(x2, 2)) / (2 * x2)
+    yPos = (math.pow(aDist, 2) - math.pow(cDist, 2) + math.pow(x3, 2) + math.pow(y3, 2) - (2 * x3 * xPos)) / (2 * y3)
+    zPos = (math.sqrt(math.pow(aDist, 2) - math.pow(xPos, 2) - math.pow(yPos, 2)))
+
+    return xPos, yPos, zPos
 
 print("Waiting for messages...")
 while True:
