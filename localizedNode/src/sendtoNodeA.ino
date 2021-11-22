@@ -34,24 +34,17 @@ void setup()
     Serial.println("init failed");
   driver.setFrequency(900);
   driver.setTxPower(23, false);
-  manager.setRetries(1);
+  manager.setRetries(0);
   manager.setTimeout(30);
 }
 
 uint8_t data[] = "Ping";
 uint8_t buf[RH_RF95_MAX_MESSAGE_LEN];
+uint8_t len = sizeof(buf);
+uint8_t from;
 
-void loop()
-{
-
-  uint8_t len = sizeof(buf);
-  uint8_t from;
-
+String getNodeAPacket(){
   String nodeAPacket = "";
-  String nodeBPacket = "";
-  String nodeCPacket = "";
-
-
   //populate nodeA packet
   nodeAPacket += ",NodeA,";
   for (int i = 0; i < 10; i++)
@@ -79,9 +72,14 @@ void loop()
       Serial.println("Packet loss A!");
     }
   }
+  return nodeAPacket;
+}
+
+String getNodeBPacket(){
+  String nodeBPacket = "";
+  //populate nodeB packet
   nodeBPacket += ",NodeB,";
 
-  //populate nodeB packet
   for (int i = 0; i < 10; i++)
   {
     if (manager.sendtoWait(data, sizeof(data), NODEB))
@@ -90,7 +88,7 @@ void loop()
       {
         nodeBPacket += String(driver.lastRssi());
 
-        if (i < 10)
+        if (i < 9)
         {
           nodeBPacket += ",";
         }
@@ -106,7 +104,11 @@ void loop()
       Serial.println("Packet loss B!");
     }
   }
+  return nodeBPacket;
+}
 
+String getNodeCPacket(){
+  String nodeCPacket = "";
   nodeCPacket += ",NodeC,";
 
   //populate nodeC packet
@@ -136,12 +138,25 @@ void loop()
       Serial.println("Packet loss C!");
     }
   }
+  return nodeCPacket;
+}
 
+void loop()
+{
+
+  String nodeAPacket = "";
+  String nodeBPacket = "";
+  String nodeCPacket = "";
   String eofStr = "EOF,";
-  int packetSize = nodeAPacket.length() + nodeBPacket.length() + nodeCPacket.length() + eofStr.length(); //packet sizes plus EOF
-  // uint8_t *packetData = (uint8_t *)malloc(packetSize*8);
   String packetString = "";
+
+  // ping anchor nodes for RSSI values and populate data strings
+  nodeAPacket = getNodeAPacket();
+  nodeBPacket = getNodeBPacket();
+  nodeCPacket = getNodeCPacket();  
+
   packetString = nodeAPacket + nodeBPacket + nodeCPacket + eofStr;
+  
   uint8_t *packetData = (uint8_t*)packetString.c_str();
 
   //send packets to data server
@@ -150,7 +165,7 @@ void loop()
   }
 
   if(manager.sendtoWait(packetData, packetString.length(), NODEC)){
-    if (manager.recvfromAckTimeout(buf, &len, 1000, &from))
+    if (manager.recvfromAckTimeout(buf, &len, 2000, &from))
     {
       Serial.println("Transmission successful. Dumping data.");
     }
