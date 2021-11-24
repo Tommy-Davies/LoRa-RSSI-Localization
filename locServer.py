@@ -6,9 +6,24 @@ import adafruit_rfm9x
 import statistics
 import math
 import matplotlib
-matplotlib.use('TkAgg')
-import matplotlib.pyplot as plt
+import random
+# from random import randrange
+# import graph
+# matplotlib.use('TkAgg')
+# import matplotlib.pyplot as plt
+# import matplotlib.animation as animation
 
+from paho.mqtt import client as mqtt_client
+import mqtt
+
+
+broker = 'broker.emqx.io'
+port = 1883
+topic = "/python/mqtt"
+client_id = f'python-mqtt-{random.randint(0, 1000)}'
+username = 'emqx'
+password = 'public'
+client = mqtt.connect_mqtt()
 
 RADIO_FREQ_MHZ = 900.0 #set radio frequency
 #digital io pins
@@ -22,7 +37,7 @@ rfm9x = adafruit_rfm9x.RFM9x(spi, CS, RESET, RADIO_FREQ_MHZ)
 #radio parameters
 rfm9x.tx_power = 23
 rfm9x.enable_crc = True
-rfm9x.ack_delay = 0.05
+rfm9x.ack_delay = 0
 
 rfm9x.node = 4 #self address
 rfm9x.destination = 1 #localized node address
@@ -55,11 +70,11 @@ def handlePacket(rawPacket:'string')->'list, list, list':
 
         #add data points to the correct lists
         if(index.lstrip("-").isdigit()): #minus sign is problematic with isdigit
-            if(mode is "A"):
+            if(mode == "A"):
                 nodeAData.append(int(index))
-            elif(mode is "B"):
+            elif(mode == "B"):
                 nodeBData.append(int(index))
-            elif(mode is "C"):
+            elif(mode == "C"):
                 nodeCData.append(int(index))
           
     #return lists
@@ -70,6 +85,9 @@ def calcDistance(nodeA: 'list', nodeB: 'list', nodeC: 'list')->'float, float, fl
     avgNodeA = 1.1
     avgNodeB = 1.1 
     avgNodeC = 1.1
+    global aPrev
+    global bPrev
+    global cPrev
 
     if(bool(nodeA)):
         avgNodeA = statistics.mean(nodeA)
@@ -92,18 +110,18 @@ def calcDistance(nodeA: 'list', nodeB: 'list', nodeC: 'list')->'float, float, fl
     bDist = 0.0
     cDist = 0.0
 
-    if(avgNodeA is not 1.1): #check if average was populated
+    if(avgNodeA != 1.1): #check if average was populated
         aDist = math.pow(10, ((AA - avgNodeA) / (10 * n))) #calculate distance with rssi
         aPrev = aDist
     else:
         aDist = aPrev #use most recent best guess of position
 
-    if(avgNodeB is not 1.1): #check if average was populated
+    if(avgNodeB != 1.1): #check if average was populated
         bDist = math.pow(10, ((AB - avgNodeB) / (10 * n))) #calculate distance with rssi
     else:
         bDist = bPrev #use most recent best guess of position
 
-    if(avgNodeC is not 1.1): #check if average was populated
+    if(avgNodeC != 1.1): #check if average was populated
         cDist = math.pow(10, ((AC - avgNodeC) / (10 * n))) #calculate distance with rssi
     else:
         cDist = cPrev #use most recent best guess of position
@@ -138,10 +156,15 @@ def trilateration(aDist:'float', bDist:'float', cDist:'float')->'float, float':
 
     return xPos, yPos
 
+
+
 print("Waiting for messages...")
+
+client.loop_start
+
+
 while True:
-    # plt.scatter(0, 0)
-    # plt.show()
+   
     packet = rfm9x.receive(with_ack=True, with_header=True) #attempt to recieve message
 
     if packet is not None:    
@@ -163,9 +186,9 @@ while True:
             aDist, bDist, cDist = calcDistance(nodeA, nodeB, nodeC)
             #calculate cartesian coordinates based on distances from nodes
             xPos, yPos = trilateration(aDist, bDist, cDist)
+            mqtt.publishMsg(client, xPos, yPos)
             
-            
-        # print(packetData)
+        print(packetData)
         if not rfm9x.send_with_ack(bytes("I don't know why but this is necessary", "UTF-8")):
             print("No Ack")
 
