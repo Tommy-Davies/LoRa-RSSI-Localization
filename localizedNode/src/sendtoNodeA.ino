@@ -10,10 +10,10 @@
 
 #define NSS 5
 #define DIO0 26
-
+#define TIMEOUT 80
 RH_RF95 driver(NSS, DIO0);
 
-RHReliableDatagram manager(driver, NODEB);
+RHReliableDatagram manager(driver, PORTABLE_ADDRESS);
 
 void setup()
 {
@@ -34,8 +34,8 @@ void setup()
     Serial.println("init failed");
   driver.setFrequency(900);
   driver.setTxPower(23, false);
-  manager.setRetries(0);
-  manager.setTimeout(30);
+  manager.setRetries(1);
+  manager.setTimeout(TIMEOUT);
 }
 
 uint8_t data[] = "Ping";
@@ -171,14 +171,20 @@ void loop()
     Serial.print((char)packetData[i]);
   }
 
+  manager.setTimeout(200);
+  delay(50);
   if(manager.sendtoWait(packetData, packetString.length(), NODEC)){
-    if (manager.recvfromAckTimeout(buf, &len, 2000, &from))
+    // delay(10);
+    if (manager.recvfromAckTimeout(buf, &len, 4000, &from))
     {
       Serial.println("Transmission successful. Dumping data.");
+      // delay(50);
+      manager.setTimeout(TIMEOUT);
+
     }
 
   }
   
-  free(packetData);
+  // free(packetData);
 
 }
