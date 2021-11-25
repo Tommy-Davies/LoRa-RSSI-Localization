@@ -37,15 +37,8 @@ def connect_mqtt():
 #             print(f"Failed to send message to topic {topic}")
 #         msg_count += 1
 
-def publishMsg(client, x, y):
-    msg = f"X, {x}, Y, {y}"
+def publishMsg(client, x, y, fallDetect, temp):
+    msg = f"X, {x}, Y, {y}, Fall, {fallDetect}, Temp, {temp}"
     result = client.publish(topic, msg)
 
 
-# def run():
-#     client = connect_mqtt()
-#     client.loop_start()
-    # publish(client)
-
-# if __name__ == '__main__':
-#     run()
