@@ -1,9 +1,10 @@
 import numpy as np
+import tkinter
+
 from matplotlib.backends.backend_tkagg import FigureCanvasTkAgg
 import PySimpleGUI as sg
 import matplotlib
 matplotlib.use('TKAgg')
-# import _tkinter
 
 import matplotlib.animation as animation
 import matplotlib.pyplot as plt
@@ -13,8 +14,8 @@ import paho.mqtt.client as mqtt
 # import graph
 # import main
 
-XData = []
-YData = []
+XData = [0]
+YData = [0]
 fallStatus = False
 tempStatus = 0
 
@@ -23,11 +24,12 @@ fig = plt.figure()
 
 ax1 = fig.add_subplot(1,1,1)
 
-# def draw_figure(canvas, figure):
-#     figure_canvas_agg = FigureCanvasTkAgg(figure, canvas)
-#     figure_canvas_agg.draw()
-#     figure_canvas_agg.get_tk_widget().pack(side="top", fill="both", expand=1)
-#     return figure_canvas_agg
+def draw_figure(canvas, fig):
+    print(fig)
+    figure_canvas_agg = FigureCanvasTkAgg(fig, canvas)
+    figure_canvas_agg.draw()
+    figure_canvas_agg.get_tk_widget().pack(side="top", fill="both", expand=1)
+    return figure_canvas_agg
 
 def windowSetup():
     # Define the window layout
@@ -53,13 +55,13 @@ def windowSetup():
 im = plt.imread("map1.png")
 #implot = plt.imshow(im)
 
-def animate(x, y):
+def animate(i):
     #populating thr arrays with get_data func
     # get_data(xar,yar)
     #clearing previous line
     ax1.clear()
     #drawing line again wiht new data
-    ax1.scatter(x,y)
+    ax1.scatter(XData,YData)
     #making the overlay visible
     implot = plt.imshow(im)
     
@@ -98,14 +100,15 @@ def on_message(client, userdata, msg):
     print(f"{msg.topic} {msg.payload}")
     packetData = msg.payload.decode('UTF-8', 'backslashreplace') #might not be needed
     handlePacket(packetData)
-    ani = animation.FuncAnimation(fig, animate(XData, YData), interval=1000)
-    # draw_figure(window["-CANVAS-"].TKCanvas, fig)
+    # 
 
-window = windowSetup()
+# 
 
 client = mqtt.Client()
 client.on_connect = on_connect
 client.on_message = on_message
+client.loop_start()
+
 
 # set the will message, when the Raspberry Pi is powered off, or the network is interrupted abnormally, it will send the will message to other clients
 client.will_set('rssi', b'{"status": "Off"}')
@@ -113,8 +116,14 @@ client.will_set('rssi', b'{"status": "Off"}')
 # create connection, the three parameters are broker address, broker port number, and keep-alive time respectively
 client.connect("broker.emqx.io", 1883, 60)
 
-event, values = window.read()
-window.close()
+window = windowSetup()
+
+ani = animation.FuncAnimation(fig, animate, interval=1000)
+draw_figure(window["-CANVAS-"].TKCanvas, fig)
+
 
 # set the network loop blocking, it will not actively end the program before calling disconnect() or the program crash
-client.loop_forever()
+# client.loop_forever()
+
+event, values = window.read()
+window.close()
