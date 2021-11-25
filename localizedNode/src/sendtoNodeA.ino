@@ -15,9 +15,9 @@ int sound_analog = 0;
 
 
 #define PORTABLE_ADDRESS 1 //self
-#define NODEA 2            //esp1
+#define NODEC 2            //esp1
 #define NODEB 3            //esp2
-#define NODEC 4            //raspberry pi
+#define NODEA 4            //raspberry pi
 
 #define NSS 5
 #define DIO0 26
@@ -233,6 +233,9 @@ uint8_t from;
 
 String getNodeAPacket(){
   String nodeAPacket = "";
+  manager.setTimeout(200);
+  manager.setRetries(2);
+  
   //populate nodeA packet
   nodeAPacket += ",NodeA,";
   for (int i = 0; i < 10; i++)
@@ -255,6 +258,9 @@ String getNodeAPacket(){
       Serial.println("Packet loss A!");
     }
   }
+  manager.setTimeout(TIMEOUT);
+  manager.setRetries(1);
+
   return nodeAPacket;
 }
 
@@ -292,7 +298,7 @@ String getNodeCPacket(){
   //populate nodeC packet
   for (int i = 0; i < 10; i++)
   {
-    Serial.println("send to c");
+    // Serial.println("send to c");
     if (manager.sendtoWait(data, sizeof(data), NODEC))
     {
       if (manager.recvfromAckTimeout(buf, &len, 500, &from))
@@ -362,14 +368,16 @@ void loop()
 
   manager.setTimeout(200);
   delay(50);
-  if(manager.sendtoWait(packetData, packetString.length(), NODEC)){
+  if(manager.sendtoWait(packetData, packetString.length(), NODEA)){
     if (manager.recvfromAckTimeout(buf, &len, 4000, &from))
     {
       Serial.println("Transmission successful. Dumping data.");
       manager.setTimeout(TIMEOUT);
       // int startTime = millis()
-      if(manager.recvfromAckTimeout(buf, &len, 4000, &from)){
+      if(manager.recvfromAckTimeout(buf, &len, 10000, &from)){
+        manager.sendtoWait(data, sizeof(data), NODEA);
         Serial.println("pathloss done");
+        // delay(1000);
       }
 
     }

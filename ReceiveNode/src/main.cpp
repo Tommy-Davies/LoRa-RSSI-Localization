@@ -5,15 +5,15 @@
 #include <SPI.h>
 
 #define PORTABLE_ADDRESS 1 //Portable node
-#define NODEA 2            //esp1 (self)
+#define NODEC 2            //esp1 (self)
 #define NODEB 3            //esp2 (self)
-#define NODEC 4            //raspberry pi
+#define NODEA 4            //raspberry pi
 
 #define NSS 5
 #define DIO0 26
 RH_RF95 driver(NSS, DIO0);
 
-RHReliableDatagram manager(driver, NODEA); //change this on upload
+RHReliableDatagram manager(driver, NODEB); //change this on upload
 
 
 void setup()
@@ -28,7 +28,7 @@ void setup()
   driver.setFrequency(900);
   driver.setTxPower(23, false);
   manager.setRetries(1);
-  manager.setTimeout(100);
+  manager.setTimeout(150);
 }
 
 uint8_t data[] = "Loc Node";
@@ -37,8 +37,8 @@ uint8_t buf[RH_RF95_MAX_MESSAGE_LEN];
 void loop()
 {
   // Serial.println("working");
-  uint8_t len = sizeof(buf);
-  uint8_t from;
+  // uint8_t len = sizeof(buf);
+  // uint8_t from;
 
   if (manager.available())
   {
