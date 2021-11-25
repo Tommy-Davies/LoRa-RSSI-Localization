@@ -188,8 +188,8 @@ def estPathloss():
         #     print("No Ack")
 
     rfm9x.destination = 1 #reset destination
-    rfm9x.ack_retries = 3
-    rfm9x.ack_wait = 0.3
+    rfm9x.ack_retries = 2
+    rfm9x.ack_wait = 0.2
     time.sleep(0.1)
 
     if(bool(pathLossArr)):
