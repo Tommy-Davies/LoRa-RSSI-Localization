@@ -46,6 +46,7 @@ rfm9x.destination = 1 #localized node address
 aPrev = 0
 bPrev = 0
 cPrev = 0 
+pathLoss = 2 #default to 2
 
 def handlePacket(rawPacket:'string')->'list, list, list':
 #   Takes a recieved packet string and splits the information along delimeters.
@@ -88,7 +89,7 @@ def handlePacket(rawPacket:'string')->'list, list, list':
     #return lists
     return nodeAData, nodeBData, nodeCData, fallDetect, temp
 
-def calcDistance(nodeA: 'list', nodeB: 'list', nodeC: 'list')->'float, float, float':
+def calcDistance(nodeA: 'list', nodeB: 'list', nodeC: 'list', pathLoss)->'float, float, float':
     #set averages to arbitrary unreachable values for error checking
     avgNodeA = 1.1
     avgNodeB = 1.1 
@@ -107,12 +108,12 @@ def calcDistance(nodeA: 'list', nodeB: 'list', nodeC: 'list')->'float, float, fl
     #rssi parameters
 
     #rssi values at 1m
-    AA = -86 #TODO tune this value
-    AB = -68 #TODO tune this value
-    AC = -58
+    AA = -73 #TODO tune this value
+    AB = -61 #TODO tune this value
+    AC = -38 #TODO tune this value
 
     #pathloss coeficient
-    n = 2 #TODO tune this value
+    n = pathLoss #TODO tune this value
 
     aDist = 0.0 #force floats
     bDist = 0.0
@@ -164,11 +165,38 @@ def trilateration(aDist:'float', bDist:'float', cDist:'float')->'float, float':
 
     return xPos, yPos
 
+def estPathloss():
+    rfm9x.destination = 2 #localized node address
+    avgRSSI = 0
 
+    A0 = -40 #TODO tune this
+    d = 2 #TODO tune this (in meters)
 
+    pathLossArr = []
+    for i in range(10):
+        if not rfm9x.send_with_ack(bytes("pLoss", "UTF-8")):
+            print("pLoss failed")
+        packet = rfm9x.receive(with_ack=True, with_header=True)
+        
+        if(packet is not None):
+            pathLossArr.append(rfm9x.last_rssi)
+            print("pathloss ping: " + rfm9x.last_rssi)
+        if not rfm9x.send_with_ack(bytes("ack", "UTF-8")):
+            print("No Ack")
+
+    rfm9x.destination = 1 #reset destination
+
+    if(bool(pathLossArr)):
+        avgRSSI = statistics.mean(pathLossArr)
+    
+    pathLoss = (avgRSSI + A0) / (-10 * math.log10(d))
+    return pathLoss
+
+        
 print("Waiting for messages...")
 
 client.loop_start
+client.loop_forever()
 
 
 while True:
@@ -188,17 +216,23 @@ while True:
         cDist = 0.0
         fallDetect = False
         temp = 0
+        
 
         if("Ping" not in packetData): #if packet is not a simple ping it should be a data packet
             #process and parse packet string along delimeters, return into lists
             nodeA, nodeB, nodeC, fallDetect, temp = handlePacket(packetData) 
             #calculate distances from rssi data, requires the most fine tuning for accuracy
-            aDist, bDist, cDist = calcDistance(nodeA, nodeB, nodeC)
+            aDist, bDist, cDist = calcDistance(nodeA, nodeB, nodeC, pathLoss)
             #calculate cartesian coordinates based on distances from nodes
             xPos, yPos = trilateration(aDist, bDist, cDist)
             mqtt.publishMsg(client, xPos, yPos, fallDetect, temp)
             
         print(packetData)
-        if not rfm9x.send_with_ack(bytes("I don't know why but this is necessary", "UTF-8")):
+        if not rfm9x.send_with_ack(bytes("Est Pathloss", "UTF-8")):
             print("No Ack")
+        else:
+            pathLoss = estPathloss() #calculate pathloss coefficient
+            print("Pathloss: " + pathLoss)
+            if not rfm9x.send_with_ack(bytes("pLossDone", "UTF-8")): #tell wearable pathloss is done
+                print("PlossDone No Ack")
 

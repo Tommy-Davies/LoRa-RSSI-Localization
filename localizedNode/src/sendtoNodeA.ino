@@ -21,7 +21,7 @@ int sound_analog = 0;
 
 #define NSS 5
 #define DIO0 26
-#define TIMEOUT 80
+#define TIMEOUT 100
 RH_RF95 driver(NSS, DIO0);
 
 RHReliableDatagram manager(driver, PORTABLE_ADDRESS);
@@ -106,8 +106,7 @@ bool setup_mpu() {
 void setup()
 {
   Serial.begin(115200);
-    // Serial.println("here");
-  setup_mpu();
+  // setup_mpu(); //TODO: put this back
 
   // Initialize pins for sound sensor
   pinMode(sound_digital, INPUT);
@@ -124,6 +123,7 @@ void setup()
   //   ; // Wait for serial port to be available
   if (!manager.init())
     Serial.println("init failed");
+
   driver.setFrequency(900);
   driver.setTxPower(23, false);
   manager.setRetries(1);
@@ -187,13 +187,13 @@ int tempDetect(float temp) {
 bool fallDetect(sensors_event_t  *event_a, sensors_event_t  *event_g) {
   float acc_magnitude, g_magnitude = 0;
   float acc_lastReading, g_lastReading = 0;
-  float high_threshhold = 20; // change in acc threshold
+  float high_threshhold = 6; // change in acc threshold
   float changeAcc = 0;
   // change in acceleration, hold one reading and compare or look at mulitple readings for trend
   // accelerometer gives around 11m/s^2 for sitting down
   acc_magnitude = sqrt(sq(event_a->acceleration.x) +sq(event_a->acceleration.y) + sq(event_a->acceleration.z));
   g_magnitude = sqrt(sq(event_g->gyro.x) +sq(event_g->gyro.y) + sq(event_g->gyro.z));
-  // changeAcc = abs(acc_magnitude - acc_lastReading);
+  changeAcc = abs(acc_magnitude - acc_lastReading);
 
   if (changeAcc > high_threshhold) {
     Serial.println("Fall Detected");
@@ -247,12 +247,7 @@ String getNodeAPacket(){
         {
           nodeAPacket += ",";
         }
-        // else
-        // {
-        //   nodeAPacket += "EOD,";
-        // }
-
-        // delay(50);
+  
       }
     }
     else
@@ -279,11 +274,7 @@ String getNodeBPacket(){
         {
           nodeBPacket += ",";
         }
-        // else
-        // {
-        //   nodeBPacket += "EOD,";
-        // }
-        // delay(50);
+      
       }
     }
     else
@@ -312,12 +303,7 @@ String getNodeCPacket(){
         {
           nodeCPacket += ",";
         }
-        // else
-        // {
-        //   nodeCPacket += "EOD,";
-        // }
-
-        // delay(50);
+  
       }
     }
     else
@@ -335,6 +321,7 @@ String getSensorData(){
 
   String sensorData = "";
   if(fallDetect(&a, &g)){
+    Serial.println("uhhh");
     sensorData += ",Fall,";
   }
   if (tempDetect(temp.temperature) == 1){
@@ -362,7 +349,7 @@ void loop()
   nodeAPacket = getNodeAPacket();
   nodeBPacket = getNodeBPacket();
   nodeCPacket = getNodeCPacket();
-  sensorPacket = getSensorData();  
+  // sensorPacket = getSensorData();  //TODO: put this back
 
   packetString = nodeAPacket + nodeBPacket + nodeCPacket + sensorPacket + eofStr;
 
@@ -376,12 +363,14 @@ void loop()
   manager.setTimeout(200);
   delay(50);
   if(manager.sendtoWait(packetData, packetString.length(), NODEC)){
-    // delay(10);
     if (manager.recvfromAckTimeout(buf, &len, 4000, &from))
     {
       Serial.println("Transmission successful. Dumping data.");
-      // delay(50);
       manager.setTimeout(TIMEOUT);
+      // int startTime = millis()
+      if(manager.recvfromAckTimeout(buf, &len, 4000, &from)){
+        Serial.println("pathloss done");
+      }
 
     }
 

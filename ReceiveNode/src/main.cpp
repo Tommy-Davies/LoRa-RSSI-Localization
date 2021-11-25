@@ -27,6 +27,8 @@ void setup()
   //        Serial.println("init 2 failed");
   driver.setFrequency(900);
   driver.setTxPower(23, false);
+  manager.setRetries(1);
+  manager.setTimeout(100);
 }
 
 uint8_t data[] = "Loc Node";
