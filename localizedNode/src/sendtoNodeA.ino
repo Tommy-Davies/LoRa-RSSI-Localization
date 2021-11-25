@@ -21,7 +21,7 @@ int sound_analog = 0;
 
 #define NSS 5
 #define DIO0 26
-#define TIMEOUT 80
+#define TIMEOUT 100
 RH_RF95 driver(NSS, DIO0);
 
 RHReliableDatagram manager(driver, PORTABLE_ADDRESS);
@@ -187,13 +187,13 @@ int tempDetect(float temp) {
 bool fallDetect(sensors_event_t  *event_a, sensors_event_t  *event_g) {
   float acc_magnitude, g_magnitude = 0;
   float acc_lastReading, g_lastReading = 0;
-  float high_threshhold = 20; // change in acc threshold
+  float high_threshhold = 6; // change in acc threshold
   float changeAcc = 0;
   // change in acceleration, hold one reading and compare or look at mulitple readings for trend
   // accelerometer gives around 11m/s^2 for sitting down
   acc_magnitude = sqrt(sq(event_a->acceleration.x) +sq(event_a->acceleration.y) + sq(event_a->acceleration.z));
   g_magnitude = sqrt(sq(event_g->gyro.x) +sq(event_g->gyro.y) + sq(event_g->gyro.z));
-  // changeAcc = abs(acc_magnitude - acc_lastReading);
+  changeAcc = abs(acc_magnitude - acc_lastReading);
 
   if (changeAcc > high_threshhold) {
     Serial.println("Fall Detected");
@@ -335,6 +335,7 @@ String getSensorData(){
 
   String sensorData = "";
   if(fallDetect(&a, &g)){
+    Serial.println("uhhh");
     sensorData += ",Fall,";
   }
   if (tempDetect(temp.temperature) == 1){

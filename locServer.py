@@ -161,7 +161,7 @@ def trilateration(aDist:'float', bDist:'float', cDist:'float')->'float, float':
 print("Waiting for messages...")
 
 client.loop_start
-
+client.loop_forever()
 
 while True:
    
