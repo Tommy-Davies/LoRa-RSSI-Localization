@@ -106,8 +106,7 @@ bool setup_mpu() {
 void setup()
 {
   Serial.begin(115200);
-    // Serial.println("here");
-  setup_mpu();
+  // setup_mpu(); //TODO: put this back
 
   // Initialize pins for sound sensor
   pinMode(sound_digital, INPUT);
@@ -124,6 +123,7 @@ void setup()
   //   ; // Wait for serial port to be available
   if (!manager.init())
     Serial.println("init failed");
+
   driver.setFrequency(900);
   driver.setTxPower(23, false);
   manager.setRetries(1);
@@ -247,12 +247,7 @@ String getNodeAPacket(){
         {
           nodeAPacket += ",";
         }
-        // else
-        // {
-        //   nodeAPacket += "EOD,";
-        // }
-
-        // delay(50);
+  
       }
     }
     else
@@ -279,11 +274,7 @@ String getNodeBPacket(){
         {
           nodeBPacket += ",";
         }
-        // else
-        // {
-        //   nodeBPacket += "EOD,";
-        // }
-        // delay(50);
+      
       }
     }
     else
@@ -312,12 +303,7 @@ String getNodeCPacket(){
         {
           nodeCPacket += ",";
         }
-        // else
-        // {
-        //   nodeCPacket += "EOD,";
-        // }
-
-        // delay(50);
+  
       }
     }
     else
@@ -363,7 +349,7 @@ void loop()
   nodeAPacket = getNodeAPacket();
   nodeBPacket = getNodeBPacket();
   nodeCPacket = getNodeCPacket();
-  sensorPacket = getSensorData();  
+  // sensorPacket = getSensorData();  //TODO: put this back
 
   packetString = nodeAPacket + nodeBPacket + nodeCPacket + sensorPacket + eofStr;
 
@@ -377,12 +363,14 @@ void loop()
   manager.setTimeout(200);
   delay(50);
   if(manager.sendtoWait(packetData, packetString.length(), NODEC)){
-    // delay(10);
     if (manager.recvfromAckTimeout(buf, &len, 4000, &from))
     {
       Serial.println("Transmission successful. Dumping data.");
-      // delay(50);
       manager.setTimeout(TIMEOUT);
+      // int startTime = millis()
+      if(manager.recvfromAckTimeout(buf, &len, 4000, &from)){
+        Serial.println("pathloss done");
+      }
 
     }
 
