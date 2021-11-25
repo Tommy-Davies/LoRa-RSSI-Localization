@@ -56,6 +56,8 @@ def handlePacket(rawPacket:'string')->'list, list, list':
     nodeAData = []
     nodeBData = []
     nodeCData = []
+    fallDetect = False
+    temp = 0
 
     for index in packetIndex:
         #Changes read mode when a new dataset is detected
@@ -65,6 +67,12 @@ def handlePacket(rawPacket:'string')->'list, list, list':
             mode = "B"
         elif("NodeC" in index):
             mode = "C"
+        elif("Fall" in index):
+            fallDetect = True
+        elif("Overtemp" in index):
+            temp = 2
+        elif("Undertemp" in index):
+            temp = 1
         elif("EOF" in index): #stops reading at EOF to prevent reading from invalid data
             break
 
@@ -78,7 +86,7 @@ def handlePacket(rawPacket:'string')->'list, list, list':
                 nodeCData.append(int(index))
           
     #return lists
-    return nodeAData, nodeBData, nodeCData
+    return nodeAData, nodeBData, nodeCData, fallDetect, temp
 
 def calcDistance(nodeA: 'list', nodeB: 'list', nodeC: 'list')->'float, float, float':
     #set averages to arbitrary unreachable values for error checking
@@ -99,8 +107,8 @@ def calcDistance(nodeA: 'list', nodeB: 'list', nodeC: 'list')->'float, float, fl
     #rssi parameters
 
     #rssi values at 1m
-    AA = -38 #TODO tune this value
-    AB = -38 #TODO tune this value
+    AA = -73 #TODO tune this value
+    AB = -61 #TODO tune this value
     AC = -38
 
     #pathloss coeficient
@@ -178,15 +186,17 @@ while True:
         aDist = 0.0
         bDist = 0.0
         cDist = 0.0
+        fallDetect = False
+        temp = 0
 
         if("Ping" not in packetData): #if packet is not a simple ping it should be a data packet
             #process and parse packet string along delimeters, return into lists
-            nodeA, nodeB, nodeC = handlePacket(packetData) 
+            nodeA, nodeB, nodeC, fallDetect, temp = handlePacket(packetData) 
             #calculate distances from rssi data, requires the most fine tuning for accuracy
             aDist, bDist, cDist = calcDistance(nodeA, nodeB, nodeC)
             #calculate cartesian coordinates based on distances from nodes
             xPos, yPos = trilateration(aDist, bDist, cDist)
-            mqtt.publishMsg(client, xPos, yPos)
+            mqtt.publishMsg(client, xPos, yPos, fallDetect, temp)
             
         print(packetData)
         if not rfm9x.send_with_ack(bytes("I don't know why but this is necessary", "UTF-8")):
