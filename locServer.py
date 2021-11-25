@@ -107,9 +107,9 @@ def calcDistance(nodeA: 'list', nodeB: 'list', nodeC: 'list')->'float, float, fl
     #rssi parameters
 
     #rssi values at 1m
-    AA = -73 #TODO tune this value
-    AB = -61 #TODO tune this value
-    AC = -38
+    AA = -86 #TODO tune this value
+    AB = -68 #TODO tune this value
+    AC = -58
 
     #pathloss coeficient
     n = 2 #TODO tune this value
@@ -154,9 +154,9 @@ def calcDistance(nodeA: 'list', nodeB: 'list', nodeC: 'list')->'float, float, fl
 def trilateration(aDist:'float', bDist:'float', cDist:'float')->'float, float':
     #static anchor node positions, in meters
     #TODO: update these:
-    x2 = 4
-    x3 = 3
-    y3 = 4
+    x2 = 2
+    x3 = 1
+    y3 = 1.5
 
     xPos = (math.pow(aDist, 2) - math.pow(bDist, 2) + math.pow(x2, 2)) / (2 * x2)
     yPos = (math.pow(aDist, 2) - math.pow(cDist, 2) + math.pow(x3, 2) + math.pow(y3, 2) - (2 * x3 * xPos)) / (2 * y3)
