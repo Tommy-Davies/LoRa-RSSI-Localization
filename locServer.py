@@ -14,7 +14,7 @@ import random
 # import matplotlib.animation as animation
 
 from paho.mqtt import client as mqtt_client
-import mqtt
+import mqttPublisher
 
 
 broker = 'broker.emqx.io'
@@ -23,7 +23,7 @@ topic = "/python/mqtt"
 client_id = f'python-mqtt-{random.randint(0, 1000)}'
 username = 'emqx'
 password = 'public'
-client = mqtt.connect_mqtt()
+client = mqttPublisher.connect_mqtt()
 
 RADIO_FREQ_MHZ = 900.0 #set radio frequency
 #digital io pins
@@ -240,7 +240,7 @@ while True:
             aDist, bDist, cDist = calcDistance(nodeA, nodeB, nodeC, pathLoss)
             #calculate cartesian coordinates based on distances from nodes
             xPos, yPos = trilateration(aDist, bDist, cDist)
-            mqtt.publishMsg(client, xPos, yPos, fallDetect, temp)
+            mqttPublisher.publishMsg(client, xPos, yPos, fallDetect, temp)
             
             
         print(packetData)
