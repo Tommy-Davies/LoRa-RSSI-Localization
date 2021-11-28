@@ -13,9 +13,19 @@ import random
 import paho.mqtt.client as mqtt
 # import graph
 # import main
+XScale = 300
+YScale = 300
+XOffset = 140
+YOffset = 140
 
-XData = [0]
-YData = [0]
+XData = []
+YData = []
+
+anchorX = [0, 1.5, 1]
+
+anchorY = [0, 0, 1.5]
+anchorX = [(x*XScale)+XOffset for x in anchorX]
+anchorY = [(x*YScale)+YOffset for x in anchorY]
 fallStatus = False
 tempStatus = 0
 
@@ -62,6 +72,8 @@ def animate(i):
     ax1.clear()
     #drawing line again wiht new data
     ax1.scatter(XData,YData)
+    ax1.scatter(anchorX,anchorY, color="g")
+
     #making the overlay visible
     implot = plt.imshow(im)
     
@@ -77,10 +89,12 @@ def handlePacket(rawPacket):
     for i in range(len(packetIndex)):
         if(i + 1 <= len(packetIndex)):
             if("X:" in packetIndex[i]):
-                XData.append(packetIndex[i+1])
+                x = (float(packetIndex[i+1]) * XScale) + XOffset
+                XData.append(x)
 
             elif("Y:" in packetIndex[i]):
-                YData.append(packetIndex[i+1])
+                y = (float(packetIndex[i + 1]) * YScale) + YOffset
+                YData.append(y)
             
             elif("Fall" in packetIndex[i]):
                 fallStatus = str2bool(packetIndex[i+1])
@@ -88,7 +102,7 @@ def handlePacket(rawPacket):
             elif("Temp" in packetIndex[i]):
                 tempStatus = packetIndex[i+1]
             
-
+    print(XData)
 def on_connect(client, userdata, flags, rc):
     print(f"Connected with result code {rc}")
     # subscribe, which need to put into on_connect
@@ -120,6 +134,7 @@ window = windowSetup()
 
 ani = animation.FuncAnimation(fig, animate, interval=1000)
 draw_figure(window["-CANVAS-"].TKCanvas, fig)
+
 
 
 # set the network loop blocking, it will not actively end the program before calling disconnect() or the program crash

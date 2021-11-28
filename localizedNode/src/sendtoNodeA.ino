@@ -5,14 +5,12 @@
 #include <Adafruit_MPU6050.h>
 #include <Adafruit_Sensor.h>
 #include <Wire.h>
-#include <math.h> 
+#include <math.h>
 
 Adafruit_MPU6050 mpu;
 
-
 int sound_digital = 4;
 int sound_analog = 0;
-
 
 #define PORTABLE_ADDRESS 1 //self
 #define NODEC 2            //esp1
@@ -20,20 +18,24 @@ int sound_analog = 0;
 #define NODEA 4            //raspberry pi
 
 #define NSS 5
-#define DIO0 26
+#define DIO0 34 //used to be 26
 #define TIMEOUT 100
+
+//init radio drivers
 RH_RF95 driver(NSS, DIO0);
 
 RHReliableDatagram manager(driver, PORTABLE_ADDRESS);
 
-bool setup_mpu() {
+bool setup_mpu()
+{
   while (!Serial)
     delay(10); // will pause Zero, Leonardo, etc until serial console opens
 
   Serial.println("Adafruit MPU6050 test!");
 
   // Try to initialize!
-  if (!mpu.begin()) {
+  if (!mpu.begin())
+  {
     Serial.println("Failed to find MPU6050 chip");
     delay(100);
     return false;
@@ -42,7 +44,8 @@ bool setup_mpu() {
 
   mpu.setAccelerometerRange(MPU6050_RANGE_8_G);
   Serial.print("Accelerometer range set to: ");
-  switch (mpu.getAccelerometerRange()) {
+  switch (mpu.getAccelerometerRange())
+  {
   case MPU6050_RANGE_2_G:
     Serial.println("+-2G");
     break;
@@ -58,7 +61,8 @@ bool setup_mpu() {
   }
   mpu.setGyroRange(MPU6050_RANGE_500_DEG);
   Serial.print("Gyro range set to: ");
-  switch (mpu.getGyroRange()) {
+  switch (mpu.getGyroRange())
+  {
   case MPU6050_RANGE_250_DEG:
     Serial.println("+- 250 deg/s");
     break;
@@ -75,7 +79,8 @@ bool setup_mpu() {
 
   mpu.setFilterBandwidth(MPU6050_BAND_21_HZ);
   Serial.print("Filter bandwidth set to: ");
-  switch (mpu.getFilterBandwidth()) {
+  switch (mpu.getFilterBandwidth())
+  {
   case MPU6050_BAND_260_HZ:
     Serial.println("260 Hz");
     break;
@@ -107,30 +112,58 @@ void setup()
 {
   Serial.begin(115200);
   // setup_mpu(); //TODO: put this back
-
   // Initialize pins for sound sensor
   pinMode(sound_digital, INPUT);
 
+  //init LoRa driver
   if (!driver.init())
   {
     Serial.println("LoRa init failed. Check your connections.");
-    // while (true)
-    //   ;
-  } else {
+  }
+  else
+  {
     Serial.println("LoRa init success");
   }
-  // while (!Serial)
-  //   ; // Wait for serial port to be available
+
+  //init datagram handler
   if (!manager.init())
     Serial.println("init failed");
 
+  //set radio settings
   driver.setFrequency(900);
   driver.setTxPower(23, false);
   manager.setRetries(1);
   manager.setTimeout(TIMEOUT);
+
+  //create RTOS tasks
+  xTaskCreate(
+      sensorTask,      //task function
+      "check sensors", //task name
+      1000,            //stack size
+      NULL,            //parameter passed in
+      1,               //task priority
+      NULL             //task handle
+  );
+
+  //TODO: idk if this is necessary
+
+  // xTaskCreate(
+  //   localizeTask,
+  //   "perform localization",
+  //   1000,
+  //   NULL,
+  //   1,
+  //   NULL
+  // );
+  
 }
 
-bool noiseDetect() {
+bool fallStatus = false;
+int tempStatus = 0;
+int soundStatus = 0;
+
+bool noiseDetect()
+{
   int val_digital = digitalRead(sound_digital);
   int val_analog = analogRead(sound_analog);
   // Serial.print(val_analog);
@@ -145,35 +178,40 @@ bool noiseDetect() {
   Serial.println(val_analog);
   return false;
 }
-bool compareFloats (float a, float b, float EPSILON) {
+bool compareFloats(float a, float b, float EPSILON)
+{
   return fabs(a - b) < EPSILON;
 }
+
 /**
  * Checks temperature against upper and lower limits.
  *
  * @param temp current temperature reading
  * @return integer, 0 for normal temperature, 1 for low temperature, 2 for high temperature
  */
-int tempDetect(float temp) {
-  float lowerLimit = 18;  // https://www.labour.gov.on.ca/english/hs/faqs/workplace.php#temperature
-  float upperLimit = 35;  // https://www.ccohs.ca/oshanswers/phys_agents/heat_health.html
+int tempDetect(float temp)
+{
+  float lowerLimit = 18; // https://www.labour.gov.on.ca/english/hs/faqs/workplace.php#temperature
+  float upperLimit = 35; // https://www.ccohs.ca/oshanswers/phys_agents/heat_health.html
   float init_val = 36.53;
   Serial.print("Temperature: ");
   Serial.print(temp);
   Serial.println(" degC");
 
-  if (temp <= lowerLimit) {
+  if (temp <= lowerLimit)
+  {
     Serial.println("Temperature too cold");
     return 1;
   }
-  else if (compareFloats(temp, init_val, 0.001)) { //  if nothing is read from MPU6050
+  else if (compareFloats(temp, init_val, 0.001))
+  { //  if nothing is read from MPU6050
     return 3;
   }
-  else if (temp >= upperLimit) {
+  else if (temp >= upperLimit)
+  {
     Serial.println("Temperature too hot");
     return 2;
   }
-
 
   return 0;
 }
@@ -184,18 +222,20 @@ int tempDetect(float temp) {
  * @param event struct holding sensor readings
  * @return boolean, true if a fall has been detected.
  */
-bool fallDetect(sensors_event_t  *event_a, sensors_event_t  *event_g) {
+bool fallDetect(sensors_event_t *event_a, sensors_event_t *event_g)
+{
   float acc_magnitude, g_magnitude = 0;
   float acc_lastReading, g_lastReading = 0;
   float high_threshhold = 6; // change in acc threshold
   float changeAcc = 0;
   // change in acceleration, hold one reading and compare or look at mulitple readings for trend
   // accelerometer gives around 11m/s^2 for sitting down
-  acc_magnitude = sqrt(sq(event_a->acceleration.x) +sq(event_a->acceleration.y) + sq(event_a->acceleration.z));
-  g_magnitude = sqrt(sq(event_g->gyro.x) +sq(event_g->gyro.y) + sq(event_g->gyro.z));
+  acc_magnitude = sqrt(sq(event_a->acceleration.x) + sq(event_a->acceleration.y) + sq(event_a->acceleration.z));
+  g_magnitude = sqrt(sq(event_g->gyro.x) + sq(event_g->gyro.y) + sq(event_g->gyro.z));
   changeAcc = abs(acc_magnitude - acc_lastReading);
 
-  if (changeAcc > high_threshhold) {
+  if (changeAcc > high_threshhold)
+  {
     Serial.println("Fall Detected");
     Serial.println("Change in Acceleration");
     Serial.print(changeAcc);
@@ -212,30 +252,35 @@ bool fallDetect(sensors_event_t  *event_a, sensors_event_t  *event_g) {
   return false;
 }
 
-void checkSensors() {
+void checkSensors()
+{
   /* Get new sensor events with the readings */
   sensors_event_t a, g, temp;
   mpu.getEvent(&a, &g, &temp);
 
   fallDetect(&a, &g);
 
-  if (tempDetect(temp.temperature) == 3) {
-    while(!setup_mpu());
+  if (tempDetect(temp.temperature) == 3)
+  {
+    while (!setup_mpu())
+      ;
   }
 
   // noiseDetect();
 }
 
+//send pings to each node
 uint8_t data[] = "Ping";
 uint8_t buf[RH_RF95_MAX_MESSAGE_LEN];
 uint8_t len = sizeof(buf);
 uint8_t from;
 
-String getNodeAPacket(){
+String getNodeAPacket()
+{
   String nodeAPacket = "";
   manager.setTimeout(200);
   manager.setRetries(2);
-  
+
   //populate nodeA packet
   nodeAPacket += ",NodeA,";
   for (int i = 0; i < 10; i++)
@@ -250,7 +295,6 @@ String getNodeAPacket(){
         {
           nodeAPacket += ",";
         }
-  
       }
     }
     else
@@ -264,7 +308,8 @@ String getNodeAPacket(){
   return nodeAPacket;
 }
 
-String getNodeBPacket(){
+String getNodeBPacket()
+{
   String nodeBPacket = "";
   //populate nodeB packet
   nodeBPacket += ",NodeB,";
@@ -280,7 +325,6 @@ String getNodeBPacket(){
         {
           nodeBPacket += ",";
         }
-      
       }
     }
     else
@@ -291,7 +335,8 @@ String getNodeBPacket(){
   return nodeBPacket;
 }
 
-String getNodeCPacket(){
+String getNodeCPacket()
+{
   String nodeCPacket = "";
   nodeCPacket += ",NodeC,";
 
@@ -309,7 +354,6 @@ String getNodeCPacket(){
         {
           nodeCPacket += ",";
         }
-  
       }
     }
     else
@@ -320,25 +364,105 @@ String getNodeCPacket(){
   return nodeCPacket;
 }
 
-//TODO: implement sensor reads/processing
-String getSensorData(){
-  sensors_event_t a, g, temp;
-  mpu.getEvent(&a, &g, &temp);
+String getSensorData()
+{
+  // sensors_event_t a, g, temp;
+  // mpu.getEvent(&a, &g, &temp);
 
   String sensorData = "";
-  if(fallDetect(&a, &g)){
-    Serial.println("uhhh");
+  if (fallStatus)
+  {
     sensorData += ",Fall,";
   }
-  if (tempDetect(temp.temperature) == 1){
+  if (tempStatus == 1)
+  {
     sensorData += ",Undertemp,";
-  } else if (tempDetect(temp.temperature) == 2){
+  }
+  else if (tempStatus == 2)
+  {
     sensorData += ",Overtemp,";
-  } else if(tempDetect(temp.temperature) == 3){
-    while(!setup_mpu());
+  }
+
+  if (soundStatus)
+  {
+    sensorData += ",High Noise,";
   }
 
   return sensorData;
+}
+
+void sensorTask(void *parameter)
+{
+  for (;;)
+  {
+    sensors_event_t a, g, temp;
+    Serial.println("debug RTOS task");
+    mpu.getEvent(&a, &g, &temp);
+
+    /*
+    I don't want to lose incident status between transmissions.
+    Falls are very intermittent while noise/temperature is continuous.
+    */
+    if(fallDetect(&a, &g)){
+      fallStatus = true; 
+    }
+    
+    tempStatus = tempDetect(temp.temperature);
+    soundStatus = noiseDetect();
+    if (tempDetect(temp.temperature) == 3)
+    {
+      while (!setup_mpu())
+        ;
+    }
+    vTaskDelay(500 / portTICK_PERIOD_MS);
+  }
+}
+
+void localizeTask(void *parameter)
+{
+  for (;;)
+  {
+    String nodeAPacket = "";
+    String nodeBPacket = "";
+    String nodeCPacket = "";
+    String sensorPacket = "";
+    String eofStr = "EOF,";
+    String packetString = "";
+
+    // ping anchor nodes for RSSI values and populate data strings
+    nodeAPacket = getNodeAPacket();
+    nodeBPacket = getNodeBPacket();
+    nodeCPacket = getNodeCPacket();
+    // sensorPacket = getSensorData();  //TODO: put this back
+
+    packetString = nodeAPacket + nodeBPacket + nodeCPacket + sensorPacket + eofStr;
+
+    uint8_t *packetData = (uint8_t *)packetString.c_str();
+
+    //send packets to data server
+    for (int i = 0; i < packetString.length(); i++)
+    {
+      Serial.print((char)packetData[i]);
+    }
+
+    manager.setTimeout(200);
+    delay(50);
+    if (manager.sendtoWait(packetData, packetString.length(), NODEA))
+    {
+      if (manager.recvfromAckTimeout(buf, &len, 4000, &from))
+      {
+        Serial.println("Transmission successful. Dumping data.");
+        manager.setTimeout(TIMEOUT);
+        // int startTime = millis()
+        if (manager.recvfromAckTimeout(buf, &len, 10000, &from))
+        {
+          manager.sendtoWait(data, sizeof(data), NODEA);
+          Serial.println("pathloss done");
+          // delay(1000);
+        }
+      }
+    }
+  }
 }
 
 void loop()
@@ -359,31 +483,31 @@ void loop()
 
   packetString = nodeAPacket + nodeBPacket + nodeCPacket + sensorPacket + eofStr;
 
-  uint8_t *packetData = (uint8_t*)packetString.c_str();
+  uint8_t *packetData = (uint8_t *)packetString.c_str();
 
   //send packets to data server
-  for(int i = 0; i < packetString.length(); i++){
+  for (int i = 0; i < packetString.length(); i++)
+  {
     Serial.print((char)packetData[i]);
   }
 
   manager.setTimeout(200);
   delay(50);
-  if(manager.sendtoWait(packetData, packetString.length(), NODEA)){
+  if (manager.sendtoWait(packetData, packetString.length(), NODEA))
+  {
     if (manager.recvfromAckTimeout(buf, &len, 4000, &from))
     {
       Serial.println("Transmission successful. Dumping data.");
       manager.setTimeout(TIMEOUT);
       // int startTime = millis()
-      if(manager.recvfromAckTimeout(buf, &len, 10000, &from)){
+      if (manager.recvfromAckTimeout(buf, &len, 10000, &from))
+      {
         manager.sendtoWait(data, sizeof(data), NODEA);
         Serial.println("pathloss done");
         // delay(1000);
       }
-
     }
-
   }
-  
-  // free(packetData);
 
+  // free(packetData);
 }
