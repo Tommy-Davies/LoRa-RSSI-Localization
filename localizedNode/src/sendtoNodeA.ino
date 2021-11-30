@@ -20,6 +20,8 @@ int sound_analog = 0;
 #define NSS 5
 #define DIO0 34 //used to be 26
 #define TIMEOUT 100
+#define TEMPOFFSET 8.4
+SemaphoreHandle_t mutex_v;
 
 //init radio drivers
 RH_RF95 driver(NSS, DIO0);
@@ -111,9 +113,9 @@ bool setup_mpu()
 void setup()
 {
   Serial.begin(115200);
-  // setup_mpu(); //TODO: put this back
+  setup_mpu(); //TODO: put this back
   // Initialize pins for sound sensor
-  pinMode(sound_digital, INPUT);
+  // pinMode(sound_analog, INPUT);
 
   //init LoRa driver
   if (!driver.init())
@@ -135,48 +137,51 @@ void setup()
   manager.setRetries(1);
   manager.setTimeout(TIMEOUT);
 
+  mutex_v = xSemaphoreCreateMutex();
+  if (mutex_v == NULL)
+  {
+    Serial.println("Mutex can not be created");
+  }
   //create RTOS tasks
   xTaskCreate(
       sensorTask,      //task function
       "check sensors", //task name
-      1000,            //stack size
+      5000,            //stack size
       NULL,            //parameter passed in
-      1,               //task priority
+      2,               //task priority
       NULL             //task handle
   );
 
   //TODO: idk if this is necessary
 
-  // xTaskCreate(
-  //   localizeTask,
-  //   "perform localization",
-  //   1000,
-  //   NULL,
-  //   1,
-  //   NULL
-  // );
-  
+  xTaskCreate(
+      localizeTask,
+      "perform localization",
+      10000,
+      NULL,
+      2,
+      NULL);
 }
 
 bool fallStatus = false;
 int tempStatus = 0;
-int soundStatus = 0;
+bool soundStatus = false;
 
 bool noiseDetect()
 {
-  int val_digital = digitalRead(sound_digital);
-  int val_analog = analogRead(sound_analog);
-  // Serial.print(val_analog);
-  // Serial.print("\t");
-  // Serial.println(val_digital);
+  int val_analog = analogRead(15);
 
-  if (val_digital == HIGH)
+  float dB = (val_analog - 993.79) / 21.17;
+  // Serial.print("Decibel: ");
+  // Serial.println(dB);
+  if (dB > 70)
   {
-    Serial.println("Noise level high");
     return true;
   }
-  Serial.println(val_analog);
-  return false;
+  else
+  {
+    return false;
+  }
 }
 bool compareFloats(float a, float b, float EPSILON)
 {
@@ -194,12 +199,14 @@ int tempDetect(float temp)
   float lowerLimit = 18; // https://www.labour.gov.on.ca/english/hs/faqs/workplace.php#temperature
   float upperLimit = 35; // https://www.ccohs.ca/oshanswers/phys_agents/heat_health.html
   float init_val = 36.53;
-  Serial.print("Temperature: ");
-  Serial.print(temp);
-  Serial.println(" degC");
+  // temp -= TEMPOFFSET;
+  // Serial.print("Temperature: ");
+  // Serial.print(temp);
+  // Serial.println(" degC");
 
   if (temp <= lowerLimit)
   {
+    Serial.println(temp);
     Serial.println("Temperature too cold");
     return 1;
   }
@@ -222,51 +229,26 @@ int tempDetect(float temp)
  * @param event struct holding sensor readings
  * @return boolean, true if a fall has been detected.
  */
+// acc_prev = 0;
 bool fallDetect(sensors_event_t *event_a, sensors_event_t *event_g)
 {
   float acc_magnitude, g_magnitude = 0;
   float acc_lastReading, g_lastReading = 0;
-  float high_threshhold = 6; // change in acc threshold
+  float high_threshhold = 20; // change in acc threshold
   float changeAcc = 0;
   // change in acceleration, hold one reading and compare or look at mulitple readings for trend
   // accelerometer gives around 11m/s^2 for sitting down
   acc_magnitude = sqrt(sq(event_a->acceleration.x) + sq(event_a->acceleration.y) + sq(event_a->acceleration.z));
   g_magnitude = sqrt(sq(event_g->gyro.x) + sq(event_g->gyro.y) + sq(event_g->gyro.z));
-  changeAcc = abs(acc_magnitude - acc_lastReading);
-
-  if (changeAcc > high_threshhold)
+  // changeAcc = abs(acc_magnitude - acc_lastReading);
+  if (acc_magnitude > high_threshhold)
   {
     Serial.println("Fall Detected");
-    Serial.println("Change in Acceleration");
-    Serial.print(changeAcc);
+
     return true;
   }
 
-  Serial.print("Magnitude of Acceleration: ");
-  Serial.println(acc_magnitude);
-  acc_lastReading = acc_magnitude;
-
-  Serial.print("Magnitude of Angular Velocity: ");
-  Serial.println(g_magnitude);
-  g_lastReading = g_magnitude;
   return false;
-}
-
-void checkSensors()
-{
-  /* Get new sensor events with the readings */
-  sensors_event_t a, g, temp;
-  mpu.getEvent(&a, &g, &temp);
-
-  fallDetect(&a, &g);
-
-  if (tempDetect(temp.temperature) == 3)
-  {
-    while (!setup_mpu())
-      ;
-  }
-
-  // noiseDetect();
 }
 
 //send pings to each node
@@ -383,7 +365,7 @@ String getSensorData()
     sensorData += ",Overtemp,";
   }
 
-  if (soundStatus)
+  if (soundStatus == true)
   {
     sensorData += ",High Noise,";
   }
@@ -396,25 +378,30 @@ void sensorTask(void *parameter)
   for (;;)
   {
     sensors_event_t a, g, temp;
-    Serial.println("debug RTOS task");
     mpu.getEvent(&a, &g, &temp);
-
+    delay(100);
     /*
     I don't want to lose incident status between transmissions.
     Falls are very intermittent while noise/temperature is continuous.
     */
-    if(fallDetect(&a, &g)){
-      fallStatus = true; 
+    if (fallDetect(&a, &g))
+    {
+      fallStatus = true;
     }
-    
+
+    // xSemaphoreGive(mutex_v);
     tempStatus = tempDetect(temp.temperature);
-    soundStatus = noiseDetect();
+    if (noiseDetect() == true)
+    {
+      soundStatus = true;
+    }
+
     if (tempDetect(temp.temperature) == 3)
     {
       while (!setup_mpu())
         ;
     }
-    vTaskDelay(500 / portTICK_PERIOD_MS);
+    vTaskDelay(400 / portTICK_PERIOD_MS);
   }
 }
 
@@ -433,7 +420,7 @@ void localizeTask(void *parameter)
     nodeAPacket = getNodeAPacket();
     nodeBPacket = getNodeBPacket();
     nodeCPacket = getNodeCPacket();
-    // sensorPacket = getSensorData();  //TODO: put this back
+    sensorPacket = getSensorData();
 
     packetString = nodeAPacket + nodeBPacket + nodeCPacket + sensorPacket + eofStr;
 
@@ -444,7 +431,7 @@ void localizeTask(void *parameter)
     {
       Serial.print((char)packetData[i]);
     }
-
+    xSemaphoreTake(mutex_v, portMAX_DELAY); 
     manager.setTimeout(200);
     delay(50);
     if (manager.sendtoWait(packetData, packetString.length(), NODEA))
@@ -453,6 +440,8 @@ void localizeTask(void *parameter)
       {
         Serial.println("Transmission successful. Dumping data.");
         manager.setTimeout(TIMEOUT);
+        fallStatus = false;
+        soundStatus = false;
         // int startTime = millis()
         if (manager.recvfromAckTimeout(buf, &len, 10000, &from))
         {
@@ -462,52 +451,65 @@ void localizeTask(void *parameter)
         }
       }
     }
+    xSemaphoreGive(mutex_v);
+    vTaskDelay(100 / portTICK_PERIOD_MS);
+
   }
+
 }
 
-void loop()
-{
+void loop(){
 
-  String nodeAPacket = "";
-  String nodeBPacket = "";
-  String nodeCPacket = "";
-  String sensorPacket = "";
-  String eofStr = "EOF,";
-  String packetString = "";
-
-  // ping anchor nodes for RSSI values and populate data strings
-  nodeAPacket = getNodeAPacket();
-  nodeBPacket = getNodeBPacket();
-  nodeCPacket = getNodeCPacket();
-  // sensorPacket = getSensorData();  //TODO: put this back
-
-  packetString = nodeAPacket + nodeBPacket + nodeCPacket + sensorPacket + eofStr;
-
-  uint8_t *packetData = (uint8_t *)packetString.c_str();
-
-  //send packets to data server
-  for (int i = 0; i < packetString.length(); i++)
-  {
-    Serial.print((char)packetData[i]);
-  }
-
-  manager.setTimeout(200);
-  delay(50);
-  if (manager.sendtoWait(packetData, packetString.length(), NODEA))
-  {
-    if (manager.recvfromAckTimeout(buf, &len, 4000, &from))
-    {
-      Serial.println("Transmission successful. Dumping data.");
-      manager.setTimeout(TIMEOUT);
-      // int startTime = millis()
-      if (manager.recvfromAckTimeout(buf, &len, 10000, &from))
-      {
-        manager.sendtoWait(data, sizeof(data), NODEA);
-        Serial.println("pathloss done");
-        // delay(1000);
-      }
-    }
-  }
-
-  // free(packetData);
 }
+
+// void loop()
+// {
+
+//   String nodeAPacket = "";
+//   String nodeBPacket = "";
+//   String nodeCPacket = "";
+//   String sensorPacket = "";
+//   String eofStr = "EOF,";
+//   String packetString = "";
+
+//   // ping anchor nodes for RSSI values and populate data strings
+//   nodeAPacket = getNodeAPacket();
+//   nodeBPacket = getNodeBPacket();
+//   nodeCPacket = getNodeCPacket();
+//   sensorPacket = getSensorData();  //TODO: put this back
+
+//   packetString = nodeAPacket + nodeBPacket + nodeCPacket + sensorPacket + eofStr;
+
+//   uint8_t *packetData = (uint8_t *)packetString.c_str();
+
+//   //send packets to data server
+//   for (int i = 0; i < packetString.length(); i++)
+//   {
+//     Serial.print((char)packetData[i]);
+//   }
+
+//   manager.setTimeout(200);
+//   delay(50);
+//   if (manager.sendtoWait(packetData, packetString.length(), NODEA))
+//   {
+//     if (manager.recvfromAckTimeout(buf, &len, 4000, &from))
+//     {
+//       Serial.println("Transmission successful. Dumping data.");
+//       manager.setTimeout(TIMEOUT);
+//       delay(50);
+//       fallStatus = false;
+//       soundStatus = false;
+//       Serial.println("after: ");
+//       Serial.print(soundStatus);
+//       // int startTime = millis()
+//       if (manager.recvfromAckTimeout(buf, &len, 10000, &from))
+//       {
+//         manager.sendtoWait(data, sizeof(data), NODEA);
+//         Serial.println("pathloss done");
+//         // delay(1000);
+//       }
+//     }
+//   }
+
+//   // free(packetData);
+// }

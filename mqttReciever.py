@@ -28,6 +28,7 @@ anchorX = [(x*XScale)+XOffset for x in anchorX]
 anchorY = [(x*YScale)+YOffset for x in anchorY]
 fallStatus = False
 tempStatus = 0
+soundStatus = False
 
 fig = plt.figure()
 # assert 'QTAgg' in fig.canvas.__class__.__name__
@@ -85,6 +86,7 @@ def handlePacket(rawPacket):
     global YData
     global fallStatus
     global tempStatus
+    global soundStatus
 
     for i in range(len(packetIndex)):
         if(i + 1 <= len(packetIndex)):
@@ -101,8 +103,10 @@ def handlePacket(rawPacket):
             
             elif("Temp" in packetIndex[i]):
                 tempStatus = packetIndex[i+1]
-            
-    print(XData)
+            elif("High Noise" in packetIndex[i]):
+                soundStatus = str2bool(packetIndex[i+1])
+
+    # print(XData)
 def on_connect(client, userdata, flags, rc):
     print(f"Connected with result code {rc}")
     # subscribe, which need to put into on_connect

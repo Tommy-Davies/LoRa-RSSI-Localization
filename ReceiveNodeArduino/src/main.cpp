@@ -1,8 +1,8 @@
-
+#include <Arduino.h>
+#include <SPI.h>
 #include <RHReliableDatagram.h>
 //#include <RHDatagram.h>
 #include <RH_RF95.h>
-#include <SPI.h>
 
 #define PORTABLE_ADDRESS 1 //Portable node
 #define NODEC 2            //esp1 (self)
@@ -10,17 +10,39 @@
 #define NODEA 4            //raspberry pi
 
 #define NSS 5
-#define DIO0 26
-RH_RF95 driver(NSS, DIO0);
+#define DIO0 7
 
-RHReliableDatagram manager(driver, NODEC); //change this on upload
+#define RFM95_CS 10
+#define RFM95_RST 9
+#define RFM95_INT 2
+
+// #endif
+
+RH_RF95 driver(RFM95_CS, RFM95_INT);
+
+RHReliableDatagram manager(driver, NODEB); //change this on upload
 
 
 void setup()
 {
+  
   Serial.begin(115200);
-  while (!Serial)
-    ; // Wait for serial port to be available
+ pinMode(RFM95_RST, OUTPUT);
+  digitalWrite(RFM95_RST, HIGH);
+
+
+  Serial.println("Feather RFM69 RX Test!");
+  Serial.println();
+
+    // manual reset
+  digitalWrite(RFM95_RST, LOW);
+  delay(10);
+  digitalWrite(RFM95_RST, HIGH);
+  delay(10);
+
+  while(!driver.init()){
+    Serial.println("driver init failed");
+  }
   if (!manager.init())
     Serial.println("init failed");
   //    if (!manager2.init())
