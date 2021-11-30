@@ -59,6 +59,7 @@ def handlePacket(rawPacket:'string')->'list, list, list':
     nodeCData = []
     fallDetect = False
     temp = 0
+    sound = 0
 
     for index in packetIndex:
         #Changes read mode when a new dataset is detected
@@ -74,6 +75,8 @@ def handlePacket(rawPacket:'string')->'list, list, list':
             temp = 2
         elif("Undertemp" in index):
             temp = 1
+        elif("High Noise" in index):
+            sound = 1
         elif("EOF" in index): #stops reading at EOF to prevent reading from invalid data
             break
 
@@ -87,7 +90,7 @@ def handlePacket(rawPacket:'string')->'list, list, list':
                 nodeCData.append(int(index))
           
     #return lists
-    return nodeAData, nodeBData, nodeCData, fallDetect, temp
+    return nodeAData, nodeBData, nodeCData, fallDetect, temp, sound
 
 def calcDistance(nodeA: 'list', nodeB: 'list', nodeC: 'list', pathLoss)->'float, float, float':
     #set averages to arbitrary unreachable values for error checking
@@ -109,8 +112,8 @@ def calcDistance(nodeA: 'list', nodeB: 'list', nodeC: 'list', pathLoss)->'float,
 
     #rssi values at 1m
     AA = -51 #TODO tune this value
-    AB = -67 #TODO tune this value
-    AC = -68 #TODO tune this value
+    AB = -55 #TODO tune this value
+    AC = -86 #TODO tune this value
 
     #pathloss coeficient
     n = pathLoss #TODO tune this value
@@ -169,7 +172,7 @@ def estPathloss():
     rfm9x.destination = 3 #reference anchor node address (B)
     avgRSSI = 0
 
-    A0 = -67 #TODO tune this
+    A0 = -59 #TODO tune this
     d = 1.5 #TODO tune this (in meters)
     rfm9x.ack_retries = 1
     rfm9x.ack_wait = 0.1
@@ -199,6 +202,7 @@ def estPathloss():
     
     print("denom " + str(-10 * math.log10(d)))
     pathLoss = (-avgRSSI + A0) / (-10 * math.log10(d))
+
     return pathLoss
 
         
@@ -235,12 +239,12 @@ while True:
                 print("PlossDone No Ack")
             
             #process and parse packet string along delimeters, return into lists
-            nodeA, nodeB, nodeC, fallDetect, temp = handlePacket(packetData) 
+            nodeA, nodeB, nodeC, fallDetect, temp, sound = handlePacket(packetData) 
             #calculate distances from rssi data, requires the most fine tuning for accuracy
             aDist, bDist, cDist = calcDistance(nodeA, nodeB, nodeC, pathLoss)
             #calculate cartesian coordinates based on distances from nodes
             xPos, yPos = trilateration(aDist, bDist, cDist)
-            mqttPublisher.publishMsg(client, xPos, yPos, fallDetect, temp)
+            mqttPublisher.publishMsg(client, xPos, yPos, fallDetect, temp, sound)
             
             
         print(packetData)
