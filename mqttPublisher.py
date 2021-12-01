@@ -26,8 +26,8 @@ def connect_mqtt():
 
 
 
-def publishMsg(client, x, y, fallDetect, temp):
-    msg = f"X:, {x}, Y:, {y}, Fall, {fallDetect}, Temp, {temp}"
+def publishMsg(client, x, y, fallDetect, temp, sound):
+    msg = f"X:, {x}, Y:, {y}, Fall, {fallDetect}, Temp, {temp}, Sound, {sound}"
     result = client.publish(topic, msg)
 
 
