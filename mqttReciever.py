@@ -11,21 +11,24 @@ import matplotlib.pyplot as plt
 import random
 
 import paho.mqtt.client as mqtt
+sg.theme('Topanga')
+
 # import graph
 # import main
-XScale = 300
-YScale = 300
-XOffset = 140
-YOffset = 140
+XScale = 100
+YScale = 120
+XOffset = 60
+YOffset = 20
 
 XData = []
 YData = []
+XAlerts = []
+YAlerts = []
 
-anchorX = [0, 1.5, 1]
+anchorX = [0, 4.3, 3]
+anchorY = [0, 0, 2]
 
-anchorY = [0, 0, 1.5]
-anchorX = [(x*XScale)+XOffset for x in anchorX]
-anchorY = [(x*YScale)+YOffset for x in anchorY]
+
 fallStatus = False
 tempStatus = 0
 soundStatus = False
@@ -36,7 +39,6 @@ fig = plt.figure()
 ax1 = fig.add_subplot(1,1,1)
 
 def draw_figure(canvas, fig):
-    print(fig)
     figure_canvas_agg = FigureCanvasTkAgg(fig, canvas)
     figure_canvas_agg.draw()
     figure_canvas_agg.get_tk_widget().pack(side="top", fill="both", expand=1)
@@ -46,9 +48,9 @@ def windowSetup():
     # Define the window layout
     layout = [
         [sg.Text("Current Location")],
-        [sg.Canvas(key="-CANVAS-")],
-        [sg.Button("Ok")],
-        [sg.Button("Close")],
+        [sg.Canvas(key="-CANVAS-"),sg.Output(size=(30,10), key='-OUTPUT-')],
+        [sg.OK(), sg.Cancel()]
+
     ]
 
     # Create the form and show it without the plot
@@ -63,17 +65,17 @@ def windowSetup():
     return window
 
 #overlay a picture over the plot
-im = plt.imread("map1.png")
+im = plt.imread("floorplanfinal.png")
 #implot = plt.imshow(im)
 
 def animate(i):
-    #populating thr arrays with get_data func
-    # get_data(xar,yar)
+
     #clearing previous line
     ax1.clear()
     #drawing line again wiht new data
     ax1.scatter(XData,YData)
     ax1.scatter(anchorX,anchorY, color="g")
+    ax1.scatter(XAlerts, YAlerts, color="r")
 
     #making the overlay visible
     implot = plt.imshow(im)
@@ -95,27 +97,39 @@ def handlePacket(rawPacket):
                 XData.append(x)
 
             elif("Y:" in packetIndex[i]):
-                y = (float(packetIndex[i + 1]) * YScale) + YOffset
+                y = height - ((float(packetIndex[i + 1]) * YScale) + YOffset)
                 YData.append(y)
             
             elif("Fall" in packetIndex[i]):
                 fallStatus = str2bool(packetIndex[i+1])
-            
             elif("Temp" in packetIndex[i]):
                 tempStatus = packetIndex[i+1]
             elif("High Noise" in packetIndex[i]):
                 soundStatus = str2bool(packetIndex[i+1])
+    
+    if fallStatus or tempStatus != 0 or soundStatus:
+        XAlerts.append(x)
+        YAlerts.append(y)
 
+    if fallStatus:
+        print("Fall at " + str(x) + ", " + str(y) + "!")
+    if tempStatus == 1:
+        print("Low temperature at " + str(x) + ", " + str(y) + "!")
+    elif tempStatus == 2:
+        print("High temperature at " + str(x) + ", " + str(y) + "!")
+    if soundStatus:
+        print("Dangerous noise levels at " + str(x) + ", " + str(y) + "!")
+    
     # print(XData)
 def on_connect(client, userdata, flags, rc):
-    print(f"Connected with result code {rc}")
+    # print(f"Connected with result code {rc}")
     # subscribe, which need to put into on_connect
     # if reconnect after losing the connection with the broker, it will continue to subscribe to the raspberry/topic topic
     client.subscribe("rssi")
 
 # the callback function, it will be triggered when receiving messages
 def on_message(client, userdata, msg):
-    print(f"{msg.topic} {msg.payload}")
+    # print(f"{msg.topic} {msg.payload}")
     packetData = msg.payload.decode('UTF-8', 'backslashreplace') #might not be needed
     handlePacket(packetData)
     # 
@@ -135,6 +149,11 @@ client.will_set('rssi', b'{"status": "Off"}')
 client.connect("broker.emqx.io", 1883, 60)
 
 window = windowSetup()
+bbox = fig.get_window_extent().transformed(fig.dpi_scale_trans.inverted())
+width, height = bbox.width*fig.dpi, bbox.height*fig.dpi
+
+anchorX = [ (x*XScale)+XOffset for x in anchorX]
+anchorY = [height - ((x*YScale)+YOffset) for x in anchorY]
 
 ani = animation.FuncAnimation(fig, animate, interval=1000)
 draw_figure(window["-CANVAS-"].TKCanvas, fig)

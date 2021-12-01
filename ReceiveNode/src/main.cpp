@@ -13,7 +13,7 @@
 #define DIO0 26
 RH_RF95 driver(NSS, DIO0);
 
-RHReliableDatagram manager(driver, NODEC); //change this on upload
+RHReliableDatagram manager(driver, NODEB); //change this on upload`
 
 
 void setup()
